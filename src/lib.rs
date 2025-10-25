@@ -31,6 +31,7 @@ impl Counter {
 pub enum CounterIx {
     Init,
     Increment,
+    Decrement,
 }
 
 entrypoint!(process_instruction);
@@ -43,7 +44,8 @@ pub fn process_instruction(
         CounterIx::try_from_slice(ix_data).map_err(|_| ProgramError::InvalidInstructionData)?;
     match ix {
         CounterIx::Init => process_init(program_id, accounts),
-        CounterIx::Increment => process_increment(program_id, accounts),
+        CounterIx::Increment => process_crement(program_id, accounts, true),
+        CounterIx::Decrement => process_crement(program_id, accounts, false),
     }
 }
 fn process_init(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
@@ -94,7 +96,11 @@ fn process_init(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult 
     Ok(())
 }
 
-fn process_increment(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+fn process_crement(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    increment: bool,
+) -> ProgramResult {
     let acc_iter = &mut accounts.iter();
     let authority = next_account_info(acc_iter)?;
     let counter_pda = next_account_info(acc_iter)?;
@@ -116,10 +122,12 @@ fn process_increment(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramRe
         return Err(ProgramError::IllegalOwner);
     }
 
-    data.count = data
-        .count
-        .checked_add(1)
-        .ok_or(ProgramError::InvalidInstructionData)?;
+    data.count = if increment {
+        data.count.checked_add(1)
+    } else {
+        data.count.checked_sub(1)
+    }
+    .ok_or(ProgramError::InvalidInstructionData)?;
     data.serialize(&mut &mut counter_pda.data.borrow_mut()[..])?;
 
     Ok(())
